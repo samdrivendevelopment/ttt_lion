@@ -1,130 +1,145 @@
+#!/usr/bin/python
 
-def printboard(rowthing):
+import json
+import sys
+
+def printboard(rowthing, ui):
     row_format = '%s %s %s'
-    print ''
+    ui.write('')
     for row in rowthing:
-        print row_format % tuple(row)
+        ui.write(row_format % tuple(row))
 
-win_condition_list = [
-    [(0, 0), (0, 1), (0, 2)], # top row
-    [(1, 0), (1, 1), (1, 2)], # middle row
-    [(2, 0), (2, 1), (2, 2)], # bottom row
-    [(0, 0), (1, 0), (2, 0)], # left column
-    [(0, 1), (1, 1), (2, 1)], # center column
-    [(0, 2), (1, 2), (2, 2)], # right column
-    [(0, 0), (1, 1), (2, 2)], # negative diagonal
-    [(0, 2), (1, 1), (2, 0)], # positive diagonal
-]
-
-def has_won(row_list, letter):
-    for win_condition in win_condition_list:
-        # had to index everything out of nested lists
-        first_y, first_x = win_condition[0]
-        second_y, second_x = win_condition[1]
-        third_y, third_x = win_condition[2]
-        # then check every spot to see if it is a win
-        if row_list[first_y][first_x] == letter:
-            if row_list[second_y][second_x] == letter:
-                if row_list[third_y][third_x] == letter:
+def vertical_win(board, letter):
+    for i in range(2):
+        if board[0][i] == letter:
+            if board[1][i] == letter:
+                if board[2][i] == letter:
                     return True
     return False
 
-cat_list = [
-    (0, 0),
-    (0, 1),
-    (0, 2),
-    (1, 0),
-    (1, 1),
-    (1, 2),
-    (2, 0),
-    (2, 1),
-    (2, 2),
-]
+def horizontal_win(board, letter):
+    for i in range(2):
+        if board[i] == [letter] * 3:
+            return True
+    return False
+
+def diagonal_win(board, letter):
+    # negative diagonal
+    if board[0][0] == letter:
+        if board[1][1] == letter:
+            if board[2][2] == letter:
+                return True
+    # positive diagonal
+    if board[0][2] == letter:
+        if board[1][1] == letter:
+            if board[2][0] == letter:
+                return True
+    return False
+ 
+def has_won(board, letter):
+    if vertical_win(board, letter):
+        return True
+    if horizontal_win(board, letter):
+        return True
+    if diagonal_win(board, letter):
+        return True
+    return False
 
 
-def did_cat(row_list):
-    for y, x in cat_list:
-        if row_list[x][y] == '_':
+def end_game(board, letter, ui):
+    if has_won(board, letter):
+        ui.write('\n' + letter + ' has won!')
+        return True
+
+    if did_cat(board):
+        ui.write('\nThe game is cat')
+        return True
+    return False
+
+def turn_change(letter):
+    return {'o': 'x', 'x': 'o'}.get(letter)
+
+def did_cat(board):
+    for i in range(2):
+        if '_' in board[i]:
             return False
     return True
 
 def should_quit(user_input):
-    return user_input in ('q', 'quit')
+    if user_input in ('q', 'quit'):
+        return True
+    return False
 
-def is_overlapping(y, x, row_list):
-    return row_list[y][x] != '_'
+def is_overlapping(y, x, board):
+    if board[int(y)][int(x)] != '_':
+        return True
+    return False
 
 def is_input_invalid(char):
-    return not (char in ('0', '1', '2'))
+    if char not in ('0', '1', '2'):
+        return True
+    return False
+
+class ShellUI(object):
+    def read(self):
+        return raw_input('->')
+
+    def write(self, text):
+        print text
+
+class TicTacToeGame(object):
+    def turn(self):
+        printboard(self.state['board'], self.ui)
+
+        self.ui.write('What row?')
+        first_raw = self.ui.read()
+        if should_quit(first_raw):
+            return True
+
+        if is_input_invalid(first_raw):
+            self.ui.write('That does not seem valid.')
+            return False
+
+        self.ui.write('What column?')
+        second_raw = self.ui.read()
+        if should_quit(second_raw):
+            return True
+
+        if is_input_invalid(second_raw):
+            self.ui.write('That does not seem vaild')
+            return False
+
+        if is_overlapping(first_raw, second_raw, self.state['board']):
+            self.ui.write('Someone is already there.')
+            return False
+
+        self.state['board'][int(first_raw)][int(second_raw)] = self.state['letter']
+
+        if end_game(self.state['board'], self.state['letter'], self.ui):
+            self.ui.write('Game has ended.')
+            return True
+
+        self.state['letter'] = turn_change(self.state['letter'])
+
+        return False
+
 
 def main():
+    # initialize state by calling function
+    filename = sys.argv[1]
+    f = open(filename)
+    state = json.load(f)
+    f.close()
+    game = TicTacToeGame()
+    game.state = state
+    game.ui = ShellUI()
 
-    row_list = [
-        ['_', '_', '_'],
-        ['_', '_', '_'],
-        ['_', '_', '_'],
-    ]
-
-    printboard(row_list)
-    # start with O so it turns into X
-    letter = 'o'
-
-    for item in range(99):
-
-        # assigns the new y via input from the player
-        print '\nWhat row?'
-        y = raw_input('->')
-
-        # checks if the player quits
-        if should_quit(y):
+    for i in range(999):
+        should_break = game.turn()
+        if should_break:
             break
 
-        # makes sure all the inputs are vaild
-        if is_input_invalid(y):
-            print 'That does not seem right'
-            continue
-
-        # asigns the new x via input from the player
-        print '\nWhat column?'
-        x = raw_input('->')
-
-        # checks if the player quits
-        if should_quit(x):
-            break
-
-        # makes sure all the inputs are vaild
-        if is_input_invalid(x):
-            print 'That does not seem right'
-            continue
-
-        # checks for overlaping
-        if is_overlapping(int(y), int(x), row_list):
-            print '\nsomebody played there already'
-            continue
-
-        # makes sure it goes back to the last turn it should go to
-        if letter == 'o':
-            letter = 'x'
-        elif letter == 'x':
-            letter = 'o'
-
-        # assigns the new list
-        row_list[int(y)][int(x)] = letter
-
-        # shows the changes in the board
-        printboard(row_list)
-
-        # checks if there is a win yet
-        if has_won(row_list, letter):
-            print '\n' + letter + ' has won!'
-            break
-
-        # checks for cats
-        if did_cat(row_list):
-            print '\nThe game is cat'
-            break
 
 if __name__ == '__main__':
     main()
-
 
